@@ -1,66 +1,57 @@
 import requests
 import time
+import sys
 
-# ===== WEATHER API =====
+print("Bot starting...")
+sys.stdout.flush()
+
+BOT_TOKEN = "8438796872:AAEtrjfPgsjIEYjRdjWnJRkfqu6CGC4KQxk"
 API_KEY = "11f04d652b2e45259d5144428252812"
 CITY = "Dehradun"
 
-# ===== TELEGRAM =====
-BOT_TOKEN = "8438796872:AAEtrjfPgsjIEYjRdjWnJRkfqu6CGC4KQxk"
+telegram = f"https://api.telegram.org/bot{BOT_TOKEN}"
+last_id = 0
 
-telegram_api = f"https://api.telegram.org/bot{BOT_TOKEN}"
-
-last_update_id = None
-
-print("🤖 Bot started... Waiting for /weather command")
+print("Bot running...")
+sys.stdout.flush()
 
 while True:
-    params = {}
-    if last_update_id:
-        params["offset"] = last_update_id + 1
+    try:
+        updates = requests.get(
+            telegram + "/getUpdates",
+            params={"offset": last_id + 1},
+            timeout=10
+        ).json()
 
-    response = requests.get(
-        telegram_api + "/getUpdates",
-        params=params
-    ).json()
+        for update in updates.get("result", []):
+            last_id = update["update_id"]
 
-    if "result" in response:
-        for update in response["result"]:
-            last_update_id = update["update_id"]
-
-            if "message" not in update:
-                continue
-
-            text = update["message"].get("text", "")
+            msg = update["message"]["text"]
             chat_id = update["message"]["chat"]["id"]
 
-            print("📩 Message received:", text)
-
-            if text == "/weather":
-
-                print("🌤 Fetching weather...")
-
-                weather = requests.get(
+            if msg == "/weather":
+                w = requests.get(
                     "https://api.weatherapi.com/v1/current.json",
-                    params={"key": API_KEY, "q": CITY}
+                    params={"key": API_KEY, "q": CITY},
+                    timeout=10
                 ).json()
 
-                msg = (
-                    "🌤 Weather Update\n"
-                    f"City : {weather['location']['name']}\n"
-                    f"Temp : {weather['current']['temp_c']}°C\n"
-                    f"Humidity : {weather['current']['humidity']}%\n"
-                    f"Wind : {weather['current']['wind_kph']} km/h"
+                text = (
+                    f"🌤 Weather\n"
+                    f"City: {w['location']['name']}\n"
+                    f"Temp: {w['current']['temp_c']}°C\n"
+                    f"Humidity: {w['current']['humidity']}%"
                 )
 
                 requests.post(
-                    telegram_api + "/sendMessage",
-                    data={
-                        "chat_id": chat_id,
-                        "text": msg
-                    }
+                    telegram + "/sendMessage",
+                    data={"chat_id": chat_id, "text": text},
+                    timeout=10
                 )
 
-                print("✅ Weather sent")
+        time.sleep(2)
 
-    time.sleep(2)
+    except Exception as e:
+        print("Error:", e)
+        sys.stdout.flush()
+        time.sleep(5)
